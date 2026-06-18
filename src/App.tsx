@@ -7,8 +7,11 @@ import BlockTaskModal from "./components/BlockTaskModal";
 import ReadyQueue from "./components/ReadyQueue";
 import RunningPanel from "./components/RunningPanel";
 import EventPanel from "./components/EventPanel";
+import SettingsModal from "./components/SettingsModal";
+import TimeSliceModal from "./components/TimeSliceModal";
 import Toast from "./components/Toast";
 import { useToast } from "./hooks/useToast";
+import { useTimeSlice } from "./hooks/useTimeSlice";
 import type { TaskState } from "./types";
 
 const columns: {
@@ -50,12 +53,35 @@ export default function App() {
   const resolveEvent = useAppStore((s) => s.resolveEvent);
   const activateEmergency = useAppStore((s) => s.activateEmergency);
   const resolveEmergency = useAppStore((s) => s.resolveEmergency);
+  const switchTask = useAppStore((s) => s.switchTask);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [blockTarget, setBlockTarget] = useState<{
     taskId: string;
     taskTitle: string;
   } | null>(null);
   const { toasts, showToast, removeToast } = useToast();
+  const { isExpired, reset } = useTimeSlice();
+
+  const showTimeSliceModal =
+    isExpired &&
+    settings.runningMode === "timeSlicing" &&
+    settings.currentRunningTaskId !== null;
+
+  const currentRunningTask = settings.currentRunningTaskId
+    ? (tasks.find((t) => t.id === settings.currentRunningTaskId) ?? null)
+    : null;
+
+  const recommendedTask =
+    tasks
+      .filter((t) => t.state === "Ready")
+      .sort((a, b) => {
+        if (a.priority !== b.priority) return a.priority - b.priority;
+        return (
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+      })[0] ?? null;
 
   const handlePromote = useCallback(
     (id: string) => {
@@ -202,6 +228,25 @@ export default function App() {
     [resolveEmergency, showToast],
   );
 
+  const handleSwitchTask = useCallback(() => {
+    if (!currentRunningTask || !recommendedTask) return;
+    try {
+      switchTask(currentRunningTask.id, recommendedTask.id);
+      showToast(`切换至: ${recommendedTask.title}`, "info");
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "Failed to switch task",
+        "error",
+      );
+    }
+    reset();
+  }, [currentRunningTask, recommendedTask, switchTask, showToast, reset]);
+
+  const handleContinueTask = useCallback(() => {
+    showToast("继续运行，倒计时重置", "info");
+    reset();
+  }, [showToast, reset]);
+
   const renderColumnContent = (state: TaskState) => {
     const columnTasks = tasks.filter((t) => t.state === state);
 
@@ -314,9 +359,21 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <span className="font-mono text-[10px] text-text-muted/60">
+              {settings.runningMode === "free"
+                ? "自由模式"
+                : `时间片 ${settings.timeSliceDuration}min`}
+            </span>
             <span className="font-mono text-xs text-text-muted">
               Tasks: <span className="text-neon-cyan">{tasks.length}</span>
             </span>
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="font-mono text-sm text-text-muted hover:text-neon-cyan transition-colors"
+              title="系统设置"
+            >
+              ⚙
+            </button>
           </div>
         </div>
       </header>
@@ -358,6 +415,19 @@ export default function App() {
         taskId={blockTarget?.taskId ?? null}
         taskTitle={blockTarget?.taskTitle ?? ""}
         onBlocked={handleBlocked}
+      />
+
+      <SettingsModal
+        open={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
+
+      <TimeSliceModal
+        open={showTimeSliceModal}
+        currentTask={currentRunningTask}
+        recommendedTask={recommendedTask}
+        onSwitch={handleSwitchTask}
+        onContinue={handleContinueTask}
       />
 
       <Toast toasts={toasts} removeToast={removeToast} />

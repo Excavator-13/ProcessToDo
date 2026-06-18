@@ -367,6 +367,38 @@ export const useAppStore = create<AppStore>()(
         });
       },
 
+      switchTask: (fromId: string, toId: string) => {
+        const { tasks, settings } = get();
+        const fromTask = tasks.find((t) => t.id === fromId);
+        const toTask = tasks.find((t) => t.id === toId);
+        if (!fromTask) throw new Error("Source task not found");
+        if (!toTask) throw new Error("Target task not found");
+        if (fromTask.state !== "Running")
+          throw new Error("Source task is not running");
+        if (toTask.state !== "Ready")
+          throw new Error("Target task is not ready");
+        if (settings.currentRunningTaskId !== fromId)
+          throw new Error("Source task is not the current running task");
+        const now = new Date().toISOString();
+        set((state) => ({
+          tasks: state.tasks.map((t) => {
+            if (t.id === fromId) {
+              return { ...t, state: "Ready" as TaskState, updatedAt: now };
+            }
+            if (t.id === toId) {
+              return {
+                ...t,
+                state: "Running" as TaskState,
+                lastRunningAt: now,
+                updatedAt: now,
+              };
+            }
+            return t;
+          }),
+          settings: { ...state.settings, currentRunningTaskId: toId },
+        }));
+      },
+
       updateSettings: (data: Partial<AppSettings>) => {
         set((state) => ({
           settings: { ...state.settings, ...data },

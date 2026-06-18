@@ -65,6 +65,8 @@ export interface AppStore {
   activateEmergency: (taskId: string) => void;
   resolveEmergency: (taskId: string) => void;
 
+  switchTask: (fromId: string, toId: string) => void;
+
   updateSettings: (data: Partial<AppSettings>) => void;
 
   checkStarvation: () => void;

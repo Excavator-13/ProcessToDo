@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAppStore } from "../store/useAppStore";
+import { useTimeSlice, formatTime } from "../hooks/useTimeSlice";
 import TaskCard from "./TaskCard";
 
 interface RunningPanelProps {
@@ -21,6 +22,7 @@ export default function RunningPanel({
 }: RunningPanelProps) {
   const tasks = useAppStore((s) => s.tasks);
   const settings = useAppStore((s) => s.settings);
+  const { remainingSeconds, isExpired } = useTimeSlice();
 
   const [showCelebration, setShowCelebration] = useState(false);
 
@@ -29,6 +31,10 @@ export default function RunningPanel({
     : null;
 
   const readyCount = tasks.filter((t) => t.state === "Ready").length;
+
+  const isTimeSlicing = settings.runningMode === "timeSlicing";
+  const isUrgent = remainingSeconds <= 60 && remainingSeconds > 0;
+  const isTimeUp = remainingSeconds === 0 && isExpired;
 
   const handleStop = () => {
     if (!runningTask) return;
@@ -68,6 +74,19 @@ export default function RunningPanel({
             {isEmergency && (
               <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-neon-red/20 text-neon-red border border-neon-red/40 animate-pulse">
                 🚨 EMERGENCY
+              </span>
+            )}
+            {isTimeSlicing && !isEmergency && (
+              <span
+                className={`font-mono text-xs ml-auto ${
+                  isTimeUp
+                    ? "text-neon-red animate-pulse"
+                    : isUrgent
+                      ? "text-neon-red animate-pulse"
+                      : "text-neon-yellow"
+                }`}
+              >
+                ⏱ {formatTime(remainingSeconds)}
               </span>
             )}
           </div>
