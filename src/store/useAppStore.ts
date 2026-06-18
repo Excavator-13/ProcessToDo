@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AppStore, AppSettings, AppEvent, Task } from "../types";
+import type {
+  AppStore,
+  AppSettings,
+  AppEvent,
+  Task,
+  CreateTaskInput,
+} from "../types";
 
 const defaultSettings: AppSettings = {
   runningMode: "free",
@@ -12,12 +18,30 @@ const defaultSettings: AppSettings = {
 
 export const useAppStore = create<AppStore>()(
   persist(
-    (_set, _get) => ({
+    (set) => ({
       tasks: [] as Task[],
       events: [] as AppEvent[],
       settings: defaultSettings,
 
-      addTask: () => {},
+      addTask: (data: CreateTaskInput) => {
+        const now = new Date().toISOString();
+        const newTask: Task = {
+          id: crypto.randomUUID(),
+          title: data.title,
+          description: data.description ?? "",
+          state: "New",
+          isExecutable: data.isExecutable ?? false,
+          priority: data.priority ?? 3,
+          isEmergency: false,
+          deadline: data.deadline ?? null,
+          isHighContextCost: data.isHighContextCost ?? false,
+          eventId: null,
+          lastRunningAt: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        set((state) => ({ tasks: [...state.tasks, newTask] }));
+      },
       updateTask: () => {},
       deleteTask: () => {},
 

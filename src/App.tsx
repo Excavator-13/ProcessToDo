@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useAppStore } from "./store/useAppStore";
 import KanbanColumn from "./components/KanbanColumn";
 import TaskCard from "./components/TaskCard";
+import CreateTaskModal from "./components/CreateTaskModal";
 import type { TaskState } from "./types";
 
 const columns: {
@@ -33,6 +35,7 @@ const columns: {
 
 export default function App() {
   const tasks = useAppStore((s) => s.tasks);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -70,6 +73,14 @@ export default function App() {
                 accentColor={col.accentColor}
                 count={columnTasks.length}
               >
+                {col.state === "New" && (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="w-full py-3 rounded-lg border-2 border-dashed border-neon-cyan/30 text-neon-cyan/60 font-mono text-sm hover:border-neon-cyan/60 hover:text-neon-cyan hover:bg-neon-cyan/5 hover:shadow-neon-cyan transition-all"
+                  >
+                    + 新建任务
+                  </button>
+                )}
                 {columnTasks.length === 0 ? (
                   <div className="flex items-center justify-center h-24 text-text-muted/40 font-mono text-xs">
                     暂无任务
@@ -90,6 +101,11 @@ export default function App() {
           ProcessToDo v0.1.0 · OS-Inspired Task Scheduler
         </p>
       </footer>
+
+      <CreateTaskModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+      />
     </div>
   );
 }
