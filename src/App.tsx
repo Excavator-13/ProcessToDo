@@ -41,12 +41,15 @@ const columns: {
 
 export default function App() {
   const tasks = useAppStore((s) => s.tasks);
+  const settings = useAppStore((s) => s.settings);
   const promoteTask = useAppStore((s) => s.promoteTask);
   const startScheduler = useAppStore((s) => s.startScheduler);
   const stopTask = useAppStore((s) => s.stopTask);
   const completeTask = useAppStore((s) => s.completeTask);
   const blockTask = useAppStore((s) => s.blockTask);
   const resolveEvent = useAppStore((s) => s.resolveEvent);
+  const activateEmergency = useAppStore((s) => s.activateEmergency);
+  const resolveEmergency = useAppStore((s) => s.resolveEmergency);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [blockTarget, setBlockTarget] = useState<{
     taskId: string;
@@ -157,6 +160,48 @@ export default function App() {
     [resolveEvent, showToast],
   );
 
+  const handleActivateEmergency = useCallback(
+    (id: string) => {
+      try {
+        activateEmergency(id);
+        showToast("Emergency task activated! Ready queue paused.", "warning");
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to activate emergency",
+          "error",
+        );
+      }
+    },
+    [activateEmergency, showToast],
+  );
+
+  const handleResolveEmergency = useCallback(
+    (id: string) => {
+      try {
+        const { tasks: currentTasks, events } = useAppStore.getState();
+        const emergencyEvent = events.find(
+          (e) => e.name === "emergency" && e.isSystemGenerated && !e.isResolved,
+        );
+        const blockedCount = emergencyEvent
+          ? currentTasks.filter(
+              (t) => t.eventId === emergencyEvent.id && t.state === "Blocked",
+            ).length
+          : 0;
+        resolveEmergency(id);
+        showToast(
+          `Emergency resolved! ${blockedCount} task(s) restored to Ready.`,
+          "success",
+        );
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to resolve emergency",
+          "error",
+        );
+      }
+    },
+    [resolveEmergency, showToast],
+  );
+
   const renderColumnContent = (state: TaskState) => {
     const columnTasks = tasks.filter((t) => t.state === state);
 
@@ -176,14 +221,25 @@ export default function App() {
               </div>
             ) : (
               columnTasks.map((task) => (
-                <TaskCard key={task.id} task={task} onPromote={handlePromote} />
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onPromote={handlePromote}
+                  onActivateEmergency={handleActivateEmergency}
+                />
               ))
             )}
           </>
         );
 
       case "Ready":
-        return <ReadyQueue onPromote={handlePromote} onBlock={handleBlock} />;
+        return (
+          <ReadyQueue
+            onPromote={handlePromote}
+            onBlock={handleBlock}
+            onActivateEmergency={handleActivateEmergency}
+          />
+        );
 
       case "Running":
         return (
@@ -193,6 +249,7 @@ export default function App() {
             onStop={handleStop}
             onComplete={handleComplete}
             onBlock={handleBlock}
+            onResolveEmergency={handleResolveEmergency}
           />
         );
 
@@ -230,6 +287,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {settings.activeEmergencyTaskId && (
+        <div className="bg-neon-red/15 border-b border-neon-red/40 animate-pulse">
+          <div className="max-w-[1920px] mx-auto px-4 py-1.5 flex items-center justify-center gap-2">
+            <span className="text-sm">🚨</span>
+            <span className="font-mono text-xs font-bold text-neon-red tracking-wider">
+              紧急模式 —{" "}
+              {tasks.find((t) => t.id === settings.activeEmergencyTaskId)
+                ?.title ?? "未知任务"}{" "}
+              运行中
+            </span>
+          </div>
+        </div>
+      )}
       <header className="border-b border-border-glow bg-bg-secondary/60 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-[1920px] mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">

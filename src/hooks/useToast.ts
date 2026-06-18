@@ -3,7 +3,7 @@ import { useState, useCallback, useRef } from "react";
 export interface ToastItem {
   id: number;
   message: string;
-  type: "error" | "success" | "info";
+  type: "error" | "success" | "info" | "warning";
 }
 
 let toastIdCounter = 0;
@@ -24,7 +24,10 @@ export function useToast() {
   }, []);
 
   const showToast = useCallback(
-    (message: string, type: "error" | "success" | "info" = "info") => {
+    (
+      message: string,
+      type: "error" | "success" | "info" | "warning" = "info",
+    ) => {
       const id = ++toastIdCounter;
       setToasts((prev) => [...prev, { id, message, type }]);
       const timer = setTimeout(() => removeToast(id), 3000);

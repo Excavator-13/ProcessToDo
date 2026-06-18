@@ -220,8 +220,152 @@ export const useAppStore = create<AppStore>()(
         }));
       },
 
-      activateEmergency: () => {},
-      resolveEmergency: () => {},
+      activateEmergency: (taskId: string) => {
+        const { tasks, events, settings } = get();
+        const task = tasks.find((t) => t.id === taskId);
+        if (!task) throw new Error("Task not found");
+        if (!task.isExecutable)
+          throw new Error("Only executable tasks can be emergency");
+        if (task.state !== "New" && task.state !== "Ready")
+          throw new Error(
+            "Only New or Ready tasks can be activated as emergency",
+          );
+        if (tasks.some((t) => t.isEmergency && t.id !== taskId))
+          throw new Error("An emergency task already exists");
+
+        const now = new Date().toISOString();
+        const emergencyEvent: AppEvent = {
+          id: crypto.randomUUID(),
+          name: "emergency",
+          isSystemGenerated: true,
+          isResolved: false,
+          createdAt: now,
+        };
+
+        let updatedTasks = tasks.map((t) => {
+          if (t.id === taskId) {
+            return {
+              ...t,
+              isEmergency: true,
+              state: "Running" as TaskState,
+              lastRunningAt: now,
+              updatedAt: now,
+            };
+          }
+          if (
+            settings.currentRunningTaskId &&
+            t.id === settings.currentRunningTaskId
+          ) {
+            return {
+              ...t,
+              state: "Ready" as TaskState,
+              updatedAt: now,
+            };
+          }
+          if (t.state === "Ready" && t.id !== taskId) {
+            return {
+              ...t,
+              state: "Blocked" as TaskState,
+              eventId: emergencyEvent.id,
+              updatedAt: now,
+            };
+          }
+          return t;
+        });
+
+        set({
+          tasks: updatedTasks,
+          events: [...events, emergencyEvent],
+          settings: {
+            ...settings,
+            currentRunningTaskId: taskId,
+            activeEmergencyTaskId: taskId,
+          },
+        });
+      },
+
+      resolveEmergency: (taskId: string) => {
+        const { tasks, events, settings } = get();
+        const task = tasks.find((t) => t.id === taskId);
+        if (!task) throw new Error("Task not found");
+        if (!task.isEmergency) throw new Error("Task is not an emergency task");
+        if (task.state !== "Running")
+          throw new Error("Emergency task is not running");
+
+        const now = new Date().toISOString();
+        const emergencyEvent = events.find(
+          (e) => e.name === "emergency" && e.isSystemGenerated && !e.isResolved,
+        );
+
+        let updatedEvents = events;
+        let updatedTasks = tasks.map((t) => {
+          if (t.id === taskId) {
+            return {
+              ...t,
+              state: "Exit" as TaskState,
+              isEmergency: false,
+              updatedAt: now,
+            };
+          }
+          return t;
+        });
+
+        if (emergencyEvent) {
+          updatedEvents = events.map((e) =>
+            e.id === emergencyEvent.id ? { ...e, isResolved: true } : e,
+          );
+
+          const blockedByEmergency = updatedTasks.filter(
+            (t) => t.eventId === emergencyEvent.id && t.state === "Blocked",
+          );
+          const currentReadyCount = updatedTasks.filter(
+            (t) => t.state === "Ready",
+          ).length;
+          const availableSlots = settings.readyQueueLimit - currentReadyCount;
+
+          if (blockedByEmergency.length > availableSlots) {
+            const restored = blockedByEmergency
+              .sort((a, b) => a.priority - b.priority)
+              .slice(0, availableSlots);
+            const restoredIds = new Set(restored.map((t) => t.id));
+
+            updatedTasks = updatedTasks.map((t) => {
+              if (restoredIds.has(t.id)) {
+                return {
+                  ...t,
+                  state: "Ready" as TaskState,
+                  eventId: null,
+                  updatedAt: now,
+                };
+              }
+              return t;
+            });
+          } else {
+            const restoredIds = new Set(blockedByEmergency.map((t) => t.id));
+            updatedTasks = updatedTasks.map((t) => {
+              if (restoredIds.has(t.id)) {
+                return {
+                  ...t,
+                  state: "Ready" as TaskState,
+                  eventId: null,
+                  updatedAt: now,
+                };
+              }
+              return t;
+            });
+          }
+        }
+
+        set({
+          tasks: updatedTasks,
+          events: updatedEvents,
+          settings: {
+            ...settings,
+            currentRunningTaskId: null,
+            activeEmergencyTaskId: null,
+          },
+        });
+      },
 
       updateSettings: (data: Partial<AppSettings>) => {
         set((state) => ({

@@ -9,12 +9,14 @@ const typeStyles: Record<string, string> = {
   error: "border-neon-red/60 bg-neon-red/10 text-neon-red",
   success: "border-neon-green/60 bg-neon-green/10 text-neon-green",
   info: "border-neon-cyan/60 bg-neon-cyan/10 text-neon-cyan",
+  warning: "border-neon-yellow/60 bg-neon-yellow/10 text-neon-yellow",
 };
 
 const typeIcons: Record<string, string> = {
   error: "✕",
   success: "✓",
   info: "ℹ",
+  warning: "⚠",
 };
 
 export default function Toast({ toasts, removeToast }: ToastProps) {

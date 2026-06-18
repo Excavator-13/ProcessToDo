@@ -5,6 +5,7 @@ interface TaskCardProps {
   task: Task;
   onPromote?: (id: string) => void;
   onBlock?: (id: string) => void;
+  onActivateEmergency?: (id: string) => void;
   isQueueHead?: boolean;
 }
 
@@ -39,9 +40,13 @@ export default function TaskCard({
   task,
   onPromote,
   onBlock,
+  onActivateEmergency,
   isQueueHead,
 }: TaskCardProps) {
   const events = useAppStore((s) => s.events);
+  const activeEmergencyTaskId = useAppStore(
+    (s) => s.settings.activeEmergencyTaskId,
+  );
   const priority = priorityConfig[task.priority] ?? priorityConfig[3];
   const hoverShadow = hoverShadowClass[task.priority] ?? hoverShadowClass[3];
 
@@ -122,15 +127,29 @@ export default function TaskCard({
       {task.state === "New" && (
         <div className="mt-2 pt-2 border-t border-border-glow">
           {task.isExecutable ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onPromote?.(task.id);
-              }}
-              className="w-full py-1.5 rounded font-mono text-[11px] border border-neon-green/40 bg-neon-green/10 text-neon-green hover:bg-neon-green/20 hover:shadow-neon-green transition-all"
-            >
-              ⏎ 提入就绪
-            </button>
+            <div className="flex gap-1.5">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPromote?.(task.id);
+                }}
+                className="flex-1 py-1.5 rounded font-mono text-[11px] border border-neon-green/40 bg-neon-green/10 text-neon-green hover:bg-neon-green/20 hover:shadow-neon-green transition-all"
+              >
+                ⏎ 提入就绪
+              </button>
+              {onActivateEmergency && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onActivateEmergency(task.id);
+                  }}
+                  disabled={activeEmergencyTaskId !== null}
+                  className="flex-1 py-1.5 rounded font-mono text-[11px] border border-neon-red/40 bg-neon-red/10 text-neon-red hover:bg-neon-red/20 hover:shadow-neon-red transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-neon-red/10 disabled:hover:shadow-none"
+                >
+                  🚨 紧急
+                </button>
+              )}
+            </div>
           ) : (
             <span className="block text-center font-mono text-[10px] text-text-muted/50 py-1.5">
               不可执行 · 仅收集
@@ -139,17 +158,33 @@ export default function TaskCard({
         </div>
       )}
 
-      {task.state === "Ready" && onBlock && (
+      {task.state === "Ready" && (onBlock || onActivateEmergency) && (
         <div className="mt-2 pt-2 border-t border-border-glow">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onBlock(task.id);
-            }}
-            className="w-full py-1.5 rounded font-mono text-[11px] border border-neon-yellow/40 bg-neon-yellow/10 text-neon-yellow hover:bg-neon-yellow/20 hover:shadow-neon-yellow transition-all"
-          >
-            🚧 阻塞
-          </button>
+          <div className="flex gap-1.5">
+            {onBlock && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onBlock(task.id);
+                }}
+                className="flex-1 py-1.5 rounded font-mono text-[11px] border border-neon-yellow/40 bg-neon-yellow/10 text-neon-yellow hover:bg-neon-yellow/20 hover:shadow-neon-yellow transition-all"
+              >
+                🚧 阻塞
+              </button>
+            )}
+            {onActivateEmergency && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onActivateEmergency(task.id);
+                }}
+                disabled={activeEmergencyTaskId !== null}
+                className="flex-1 py-1.5 rounded font-mono text-[11px] border border-neon-red/40 bg-neon-red/10 text-neon-red hover:bg-neon-red/20 hover:shadow-neon-red transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-neon-red/10 disabled:hover:shadow-none"
+              >
+                🚨 紧急
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
