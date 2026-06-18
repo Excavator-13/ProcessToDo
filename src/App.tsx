@@ -3,8 +3,10 @@ import { useAppStore } from "./store/useAppStore";
 import KanbanColumn from "./components/KanbanColumn";
 import TaskCard from "./components/TaskCard";
 import CreateTaskModal from "./components/CreateTaskModal";
+import BlockTaskModal from "./components/BlockTaskModal";
 import ReadyQueue from "./components/ReadyQueue";
 import RunningPanel from "./components/RunningPanel";
+import EventPanel from "./components/EventPanel";
 import Toast from "./components/Toast";
 import { useToast } from "./hooks/useToast";
 import type { TaskState } from "./types";
@@ -43,7 +45,13 @@ export default function App() {
   const startScheduler = useAppStore((s) => s.startScheduler);
   const stopTask = useAppStore((s) => s.stopTask);
   const completeTask = useAppStore((s) => s.completeTask);
+  const blockTask = useAppStore((s) => s.blockTask);
+  const resolveEvent = useAppStore((s) => s.resolveEvent);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [blockTarget, setBlockTarget] = useState<{
+    taskId: string;
+    taskTitle: string;
+  } | null>(null);
   const { toasts, showToast, removeToast } = useToast();
 
   const handlePromote = useCallback(
@@ -103,6 +111,52 @@ export default function App() {
     [completeTask, showToast],
   );
 
+  const handleBlock = useCallback(
+    (id: string) => {
+      const task = tasks.find((t) => t.id === id);
+      if (!task) return;
+      setBlockTarget({ taskId: task.id, taskTitle: task.title });
+    },
+    [tasks],
+  );
+
+  const handleBlocked = useCallback(
+    (id: string, eventName: string) => {
+      try {
+        blockTask(id, eventName);
+        showToast("Task blocked", "info");
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to block task",
+          "error",
+        );
+      }
+    },
+    [blockTask, showToast],
+  );
+
+  const handleResolveEvent = useCallback(
+    (eventId: string) => {
+      try {
+        const { tasks: currentTasks } = useAppStore.getState();
+        const blockedCount = currentTasks.filter(
+          (t) => t.eventId === eventId && t.state === "Blocked",
+        ).length;
+        resolveEvent(eventId);
+        showToast(
+          `Event resolved, ${blockedCount} task(s) restored to Ready`,
+          "success",
+        );
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to resolve event",
+          "error",
+        );
+      }
+    },
+    [resolveEvent, showToast],
+  );
+
   const renderColumnContent = (state: TaskState) => {
     const columnTasks = tasks.filter((t) => t.state === state);
 
@@ -129,7 +183,7 @@ export default function App() {
         );
 
       case "Ready":
-        return <ReadyQueue onPromote={handlePromote} />;
+        return <ReadyQueue onPromote={handlePromote} onBlock={handleBlock} />;
 
       case "Running":
         return (
@@ -138,16 +192,22 @@ export default function App() {
             onStart={handleStartScheduler}
             onStop={handleStop}
             onComplete={handleComplete}
+            onBlock={handleBlock}
           />
         );
 
       case "Blocked":
-        return columnTasks.length === 0 ? (
-          <div className="flex items-center justify-center h-24 text-text-muted/40 font-mono text-xs">
-            暂无阻塞
-          </div>
-        ) : (
-          columnTasks.map((task) => <TaskCard key={task.id} task={task} />)
+        return (
+          <>
+            <EventPanel onResolveEvent={handleResolveEvent} />
+            {columnTasks.length === 0 ? (
+              <div className="flex items-center justify-center h-24 text-text-muted/40 font-mono text-xs">
+                暂无阻塞
+              </div>
+            ) : (
+              columnTasks.map((task) => <TaskCard key={task.id} task={task} />)
+            )}
+          </>
         );
 
       case "Exit":
@@ -220,6 +280,14 @@ export default function App() {
       <CreateTaskModal
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
+      />
+
+      <BlockTaskModal
+        open={blockTarget !== null}
+        onClose={() => setBlockTarget(null)}
+        taskId={blockTarget?.taskId ?? null}
+        taskTitle={blockTarget?.taskTitle ?? ""}
+        onBlocked={handleBlocked}
       />
 
       <Toast toasts={toasts} removeToast={removeToast} />

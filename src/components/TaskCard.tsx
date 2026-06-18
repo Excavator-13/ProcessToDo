@@ -1,8 +1,10 @@
+import { useAppStore } from "../store/useAppStore";
 import type { Task } from "../types";
 
 interface TaskCardProps {
   task: Task;
   onPromote?: (id: string) => void;
+  onBlock?: (id: string) => void;
   isQueueHead?: boolean;
 }
 
@@ -36,8 +38,10 @@ const hoverShadowClass: Record<number, string> = {
 export default function TaskCard({
   task,
   onPromote,
+  onBlock,
   isQueueHead,
 }: TaskCardProps) {
+  const events = useAppStore((s) => s.events);
   const priority = priorityConfig[task.priority] ?? priorityConfig[3];
   const hoverShadow = hoverShadowClass[task.priority] ?? hoverShadowClass[3];
 
@@ -107,6 +111,14 @@ export default function TaskCard({
         )}
       </div>
 
+      {task.state === "Blocked" && task.eventId && (
+        <div className="mt-1.5">
+          <span className="text-[10px] font-mono text-neon-yellow">
+            🚧 {events.find((e) => e.id === task.eventId)?.name ?? "Unknown"}
+          </span>
+        </div>
+      )}
+
       {task.state === "New" && (
         <div className="mt-2 pt-2 border-t border-border-glow">
           {task.isExecutable ? (
@@ -124,6 +136,20 @@ export default function TaskCard({
               不可执行 · 仅收集
             </span>
           )}
+        </div>
+      )}
+
+      {task.state === "Ready" && onBlock && (
+        <div className="mt-2 pt-2 border-t border-border-glow">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onBlock(task.id);
+            }}
+            className="w-full py-1.5 rounded font-mono text-[11px] border border-neon-yellow/40 bg-neon-yellow/10 text-neon-yellow hover:bg-neon-yellow/20 hover:shadow-neon-yellow transition-all"
+          >
+            🚧 阻塞
+          </button>
         </div>
       )}
     </div>

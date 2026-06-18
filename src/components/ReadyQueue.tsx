@@ -34,9 +34,10 @@ const priorityColumns: {
 
 interface ReadyQueueProps {
   onPromote?: (id: string) => void;
+  onBlock?: (id: string) => void;
 }
 
-export default function ReadyQueue({ onPromote }: ReadyQueueProps) {
+export default function ReadyQueue({ onPromote, onBlock }: ReadyQueueProps) {
   const tasks = useAppStore((s) => s.tasks);
   const readyQueueLimit = useAppStore((s) => s.settings.readyQueueLimit);
 
@@ -99,6 +100,7 @@ export default function ReadyQueue({ onPromote }: ReadyQueueProps) {
                       key={task.id}
                       task={task}
                       onPromote={onPromote}
+                      onBlock={onBlock}
                       isQueueHead={index === 0}
                     />
                   ))

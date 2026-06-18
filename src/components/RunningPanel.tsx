@@ -7,6 +7,7 @@ interface RunningPanelProps {
   onStart: () => void;
   onStop: (id: string) => void;
   onComplete: (id: string) => void;
+  onBlock: (id: string) => void;
 }
 
 export default function RunningPanel({
@@ -14,6 +15,7 @@ export default function RunningPanel({
   onStart,
   onStop,
   onComplete,
+  onBlock,
 }: RunningPanelProps) {
   const tasks = useAppStore((s) => s.tasks);
   const settings = useAppStore((s) => s.settings);
@@ -60,6 +62,12 @@ export default function RunningPanel({
             className="flex-1 py-2 rounded-lg font-mono text-xs border border-neon-yellow/40 bg-neon-yellow/10 text-neon-yellow hover:bg-neon-yellow/20 hover:shadow-neon-yellow transition-all"
           >
             ⏸ 停止
+          </button>
+          <button
+            onClick={() => onBlock(runningTask.id)}
+            className="flex-1 py-2 rounded-lg font-mono text-xs border border-neon-yellow/40 bg-neon-yellow/10 text-neon-yellow hover:bg-neon-yellow/20 hover:shadow-neon-yellow transition-all"
+          >
+            🚧 阻塞
           </button>
           <button
             onClick={handleComplete}

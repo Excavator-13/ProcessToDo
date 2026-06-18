@@ -151,9 +151,74 @@ export const useAppStore = create<AppStore>()(
         }));
       },
 
-      blockTask: () => {},
+      blockTask: (id: string, eventName: string) => {
+        const { tasks } = get();
+        const task = tasks.find((t) => t.id === id);
+        if (!task) throw new Error("Task not found");
+        if (task.state !== "Running" && task.state !== "Ready")
+          throw new Error("Only Running or Ready tasks can be blocked");
+        if (!eventName.trim()) throw new Error("Event name is required");
+        const now = new Date().toISOString();
+        const newEvent: AppEvent = {
+          id: crypto.randomUUID(),
+          name: eventName.trim(),
+          isSystemGenerated: false,
+          isResolved: false,
+          createdAt: now,
+        };
+        const isRunning = task.state === "Running";
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  state: "Blocked" as TaskState,
+                  eventId: newEvent.id,
+                  updatedAt: now,
+                }
+              : t,
+          ),
+          events: [...state.events, newEvent],
+          settings: isRunning
+            ? { ...state.settings, currentRunningTaskId: null }
+            : state.settings,
+        }));
+      },
 
-      resolveEvent: () => {},
+      resolveEvent: (eventId: string) => {
+        const { tasks, events, settings } = get();
+        const event = events.find((e) => e.id === eventId);
+        if (!event) throw new Error("Event not found");
+        if (event.isResolved) throw new Error("Event is already resolved");
+        const blockedTasks = tasks.filter(
+          (t) => t.eventId === eventId && t.state === "Blocked",
+        );
+        const currentReadyCount = tasks.filter(
+          (t) => t.state === "Ready",
+        ).length;
+        const availableSlots = settings.readyQueueLimit - currentReadyCount;
+        if (blockedTasks.length > availableSlots)
+          throw new Error(
+            `Ready queue capacity insufficient: can only restore ${availableSlots} of ${blockedTasks.length} tasks`,
+          );
+        const now = new Date().toISOString();
+        const blockedTaskIds = new Set(blockedTasks.map((t) => t.id));
+        set((state) => ({
+          events: state.events.map((e) =>
+            e.id === eventId ? { ...e, isResolved: true } : e,
+          ),
+          tasks: state.tasks.map((t) =>
+            blockedTaskIds.has(t.id)
+              ? {
+                  ...t,
+                  state: "Ready" as TaskState,
+                  eventId: null,
+                  updatedAt: now,
+                }
+              : t,
+          ),
+        }));
+      },
 
       activateEmergency: () => {},
       resolveEmergency: () => {},
