@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useAppStore } from "./store/useAppStore";
 import KanbanColumn from "./components/KanbanColumn";
 import TaskCard from "./components/TaskCard";
 import CreateTaskModal from "./components/CreateTaskModal";
+import ReadyQueue from "./components/ReadyQueue";
+import RunningPanel from "./components/RunningPanel";
+import Toast from "./components/Toast";
+import { useToast } from "./hooks/useToast";
 import type { TaskState } from "./types";
 
 const columns: {
@@ -35,7 +39,134 @@ const columns: {
 
 export default function App() {
   const tasks = useAppStore((s) => s.tasks);
+  const promoteTask = useAppStore((s) => s.promoteTask);
+  const startScheduler = useAppStore((s) => s.startScheduler);
+  const stopTask = useAppStore((s) => s.stopTask);
+  const completeTask = useAppStore((s) => s.completeTask);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const { toasts, showToast, removeToast } = useToast();
+
+  const handlePromote = useCallback(
+    (id: string) => {
+      try {
+        promoteTask(id);
+        showToast("Task promoted to Ready", "success");
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to promote task",
+          "error",
+        );
+      }
+    },
+    [promoteTask, showToast],
+  );
+
+  const handleStartScheduler = useCallback(() => {
+    try {
+      startScheduler();
+      showToast("Scheduler started", "success");
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "Failed to start scheduler",
+        "error",
+      );
+    }
+  }, [startScheduler, showToast]);
+
+  const handleStop = useCallback(
+    (id: string) => {
+      try {
+        stopTask(id);
+        showToast("Task stopped, returned to Ready", "info");
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to stop task",
+          "error",
+        );
+      }
+    },
+    [stopTask, showToast],
+  );
+
+  const handleComplete = useCallback(
+    (id: string) => {
+      try {
+        completeTask(id);
+        showToast("Task completed! 🎉", "success");
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to complete task",
+          "error",
+        );
+      }
+    },
+    [completeTask, showToast],
+  );
+
+  const renderColumnContent = (state: TaskState) => {
+    const columnTasks = tasks.filter((t) => t.state === state);
+
+    switch (state) {
+      case "New":
+        return (
+          <>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="w-full py-3 rounded-lg border-2 border-dashed border-neon-cyan/30 text-neon-cyan/60 font-mono text-sm hover:border-neon-cyan/60 hover:text-neon-cyan hover:bg-neon-cyan/5 hover:shadow-neon-cyan transition-all"
+            >
+              + 新建任务
+            </button>
+            {columnTasks.length === 0 ? (
+              <div className="flex items-center justify-center h-24 text-text-muted/40 font-mono text-xs">
+                暂无任务
+              </div>
+            ) : (
+              columnTasks.map((task) => (
+                <TaskCard key={task.id} task={task} onPromote={handlePromote} />
+              ))
+            )}
+          </>
+        );
+
+      case "Ready":
+        return <ReadyQueue onPromote={handlePromote} />;
+
+      case "Running":
+        return (
+          <RunningPanel
+            onPromote={handlePromote}
+            onStart={handleStartScheduler}
+            onStop={handleStop}
+            onComplete={handleComplete}
+          />
+        );
+
+      case "Blocked":
+        return columnTasks.length === 0 ? (
+          <div className="flex items-center justify-center h-24 text-text-muted/40 font-mono text-xs">
+            暂无阻塞
+          </div>
+        ) : (
+          columnTasks.map((task) => <TaskCard key={task.id} task={task} />)
+        );
+
+      case "Exit":
+        return columnTasks.length === 0 ? (
+          <div className="flex items-center justify-center h-24 text-text-muted/40 font-mono text-xs">
+            暂无完成
+          </div>
+        ) : (
+          columnTasks.map((task) => (
+            <div key={task.id} className="animate-fade-up">
+              <TaskCard task={task} />
+            </div>
+          ))
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -73,23 +204,7 @@ export default function App() {
                 accentColor={col.accentColor}
                 count={columnTasks.length}
               >
-                {col.state === "New" && (
-                  <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="w-full py-3 rounded-lg border-2 border-dashed border-neon-cyan/30 text-neon-cyan/60 font-mono text-sm hover:border-neon-cyan/60 hover:text-neon-cyan hover:bg-neon-cyan/5 hover:shadow-neon-cyan transition-all"
-                  >
-                    + 新建任务
-                  </button>
-                )}
-                {columnTasks.length === 0 ? (
-                  <div className="flex items-center justify-center h-24 text-text-muted/40 font-mono text-xs">
-                    暂无任务
-                  </div>
-                ) : (
-                  columnTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} />
-                  ))
-                )}
+                {renderColumnContent(col.state)}
               </KanbanColumn>
             );
           })}
@@ -106,6 +221,8 @@ export default function App() {
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
       />
+
+      <Toast toasts={toasts} removeToast={removeToast} />
     </div>
   );
 }

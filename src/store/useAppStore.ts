@@ -6,6 +6,7 @@ import type {
   AppEvent,
   Task,
   CreateTaskInput,
+  TaskState,
 } from "../types";
 
 const defaultSettings: AppSettings = {
@@ -18,7 +19,7 @@ const defaultSettings: AppSettings = {
 
 export const useAppStore = create<AppStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       tasks: [] as Task[],
       events: [] as AppEvent[],
       settings: defaultSettings,
@@ -42,13 +43,114 @@ export const useAppStore = create<AppStore>()(
         };
         set((state) => ({ tasks: [...state.tasks, newTask] }));
       },
-      updateTask: () => {},
-      deleteTask: () => {},
 
-      promoteTask: () => {},
-      startScheduler: () => {},
-      stopTask: () => {},
-      completeTask: () => {},
+      updateTask: (id: string, data: Partial<Task>) => {
+        const now = new Date().toISOString();
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === id ? { ...t, ...data, updatedAt: now } : t,
+          ),
+        }));
+      },
+
+      deleteTask: (id: string) => {
+        set((state) => ({
+          tasks: state.tasks.filter((t) => t.id !== id),
+        }));
+      },
+
+      promoteTask: (id: string) => {
+        const { tasks, settings } = get();
+        const task = tasks.find((t) => t.id === id);
+        if (!task) throw new Error("Task not found");
+        if (task.state !== "New") throw new Error("Task is not in New state");
+        if (!task.isExecutable) throw new Error("Task is not executable");
+        const readyCount = tasks.filter((t) => t.state === "Ready").length;
+        if (readyCount >= settings.readyQueueLimit)
+          throw new Error("Ready queue is full");
+        const now = new Date().toISOString();
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === id
+              ? { ...t, state: "Ready" as TaskState, updatedAt: now }
+              : t,
+          ),
+        }));
+      },
+
+      startScheduler: () => {
+        const { tasks, settings } = get();
+        if (settings.currentRunningTaskId !== null)
+          throw new Error("A task is already running");
+        const readyTasks = tasks
+          .filter((t) => t.state === "Ready")
+          .sort((a, b) => {
+            if (a.priority !== b.priority) return a.priority - b.priority;
+            return (
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+          });
+        if (readyTasks.length === 0) throw new Error("No tasks in Ready queue");
+        const nextTask = readyTasks[0];
+        const now = new Date().toISOString();
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === nextTask.id
+              ? {
+                  ...t,
+                  state: "Running" as TaskState,
+                  lastRunningAt: now,
+                  updatedAt: now,
+                }
+              : t,
+          ),
+          settings: {
+            ...state.settings,
+            currentRunningTaskId: nextTask.id,
+          },
+        }));
+      },
+
+      stopTask: (id: string) => {
+        const { tasks } = get();
+        const task = tasks.find((t) => t.id === id);
+        if (!task) throw new Error("Task not found");
+        if (task.state !== "Running")
+          throw new Error("Task is not in Running state");
+        const now = new Date().toISOString();
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === id
+              ? { ...t, state: "Ready" as TaskState, updatedAt: now }
+              : t,
+          ),
+          settings: {
+            ...state.settings,
+            currentRunningTaskId: null,
+          },
+        }));
+      },
+
+      completeTask: (id: string) => {
+        const { tasks } = get();
+        const task = tasks.find((t) => t.id === id);
+        if (!task) throw new Error("Task not found");
+        if (task.state !== "Running")
+          throw new Error("Task is not in Running state");
+        const now = new Date().toISOString();
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === id
+              ? { ...t, state: "Exit" as TaskState, updatedAt: now }
+              : t,
+          ),
+          settings: {
+            ...state.settings,
+            currentRunningTaskId: null,
+          },
+        }));
+      },
+
       blockTask: () => {},
 
       resolveEvent: () => {},
@@ -56,7 +158,11 @@ export const useAppStore = create<AppStore>()(
       activateEmergency: () => {},
       resolveEmergency: () => {},
 
-      updateSettings: () => {},
+      updateSettings: (data: Partial<AppSettings>) => {
+        set((state) => ({
+          settings: { ...state.settings, ...data },
+        }));
+      },
 
       checkStarvation: () => {},
     }),
