@@ -31,7 +31,9 @@ export function useTimeSlice() {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    setIsRunning(false);
+    queueMicrotask(() => {
+      setIsRunning(false);
+    });
   }, []);
 
   const start = useCallback(() => {
@@ -74,8 +76,10 @@ export function useTimeSlice() {
     if (runningMode !== "timeSlicing") return;
     if (activeEmergencyTaskId !== null) {
       clearTimer();
-      setRemainingSeconds(0);
-      setIsExpired(false);
+      queueMicrotask(() => {
+        setRemainingSeconds(0);
+        setIsExpired(false);
+      });
       return;
     }
 
@@ -83,8 +87,10 @@ export function useTimeSlice() {
       start();
     } else if (!currentRunningTaskId && prevId) {
       clearTimer();
-      setRemainingSeconds(0);
-      setIsExpired(false);
+      queueMicrotask(() => {
+        setRemainingSeconds(0);
+        setIsExpired(false);
+      });
     }
   }, [
     currentRunningTaskId,

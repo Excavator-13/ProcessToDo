@@ -7,6 +7,7 @@ import type {
   Task,
   CreateTaskInput,
   TaskState,
+  Priority,
 } from "../types";
 
 const defaultSettings: AppSettings = {
@@ -62,12 +63,13 @@ export const useAppStore = create<AppStore>()(
       promoteTask: (id: string) => {
         const { tasks, settings } = get();
         const task = tasks.find((t) => t.id === id);
-        if (!task) throw new Error("Task not found");
-        if (task.state !== "New") throw new Error("Task is not in New state");
-        if (!task.isExecutable) throw new Error("Task is not executable");
+        if (!task) throw new Error("任务不存在");
+        if (task.state !== "New")
+          throw new Error("仅 New 状态的任务可提入就绪");
+        if (!task.isExecutable) throw new Error("不可执行的任务无法提入就绪");
         const readyCount = tasks.filter((t) => t.state === "Ready").length;
         if (readyCount >= settings.readyQueueLimit)
-          throw new Error("Ready queue is full");
+          throw new Error("Ready 队列已满");
         const now = new Date().toISOString();
         set((state) => ({
           tasks: state.tasks.map((t) =>
@@ -79,9 +81,10 @@ export const useAppStore = create<AppStore>()(
       },
 
       startScheduler: () => {
+        get().checkStarvation();
         const { tasks, settings } = get();
         if (settings.currentRunningTaskId !== null)
-          throw new Error("A task is already running");
+          throw new Error("已有任务在运行");
         const readyTasks = tasks
           .filter((t) => t.state === "Ready")
           .sort((a, b) => {
@@ -90,7 +93,7 @@ export const useAppStore = create<AppStore>()(
               new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
             );
           });
-        if (readyTasks.length === 0) throw new Error("No tasks in Ready queue");
+        if (readyTasks.length === 0) throw new Error("Ready 队列为空");
         const nextTask = readyTasks[0];
         const now = new Date().toISOString();
         set((state) => ({
@@ -114,9 +117,8 @@ export const useAppStore = create<AppStore>()(
       stopTask: (id: string) => {
         const { tasks } = get();
         const task = tasks.find((t) => t.id === id);
-        if (!task) throw new Error("Task not found");
-        if (task.state !== "Running")
-          throw new Error("Task is not in Running state");
+        if (!task) throw new Error("任务不存在");
+        if (task.state !== "Running") throw new Error("当前无运行中的任务");
         const now = new Date().toISOString();
         set((state) => ({
           tasks: state.tasks.map((t) =>
@@ -134,9 +136,8 @@ export const useAppStore = create<AppStore>()(
       completeTask: (id: string) => {
         const { tasks } = get();
         const task = tasks.find((t) => t.id === id);
-        if (!task) throw new Error("Task not found");
-        if (task.state !== "Running")
-          throw new Error("Task is not in Running state");
+        if (!task) throw new Error("任务不存在");
+        if (task.state !== "Running") throw new Error("当前无运行中的任务");
         const now = new Date().toISOString();
         set((state) => ({
           tasks: state.tasks.map((t) =>
@@ -154,10 +155,10 @@ export const useAppStore = create<AppStore>()(
       blockTask: (id: string, eventName: string) => {
         const { tasks } = get();
         const task = tasks.find((t) => t.id === id);
-        if (!task) throw new Error("Task not found");
+        if (!task) throw new Error("任务不存在");
         if (task.state !== "Running" && task.state !== "Ready")
-          throw new Error("Only Running or Ready tasks can be blocked");
-        if (!eventName.trim()) throw new Error("Event name is required");
+          throw new Error("仅 Running/Ready 状态的任务可阻塞");
+        if (!eventName.trim()) throw new Error("请输入阻塞原因");
         const now = new Date().toISOString();
         const newEvent: AppEvent = {
           id: crypto.randomUUID(),
@@ -188,8 +189,8 @@ export const useAppStore = create<AppStore>()(
       resolveEvent: (eventId: string) => {
         const { tasks, events, settings } = get();
         const event = events.find((e) => e.id === eventId);
-        if (!event) throw new Error("Event not found");
-        if (event.isResolved) throw new Error("Event is already resolved");
+        if (!event) throw new Error("事件不存在");
+        if (event.isResolved) throw new Error("事件已解决");
         const blockedTasks = tasks.filter(
           (t) => t.eventId === eventId && t.state === "Blocked",
         );
@@ -198,9 +199,7 @@ export const useAppStore = create<AppStore>()(
         ).length;
         const availableSlots = settings.readyQueueLimit - currentReadyCount;
         if (blockedTasks.length > availableSlots)
-          throw new Error(
-            `Ready queue capacity insufficient: can only restore ${availableSlots} of ${blockedTasks.length} tasks`,
-          );
+          throw new Error("Ready 队列容量不足，无法恢复所有阻塞任务");
         const now = new Date().toISOString();
         const blockedTaskIds = new Set(blockedTasks.map((t) => t.id));
         set((state) => ({
@@ -223,15 +222,12 @@ export const useAppStore = create<AppStore>()(
       activateEmergency: (taskId: string) => {
         const { tasks, events, settings } = get();
         const task = tasks.find((t) => t.id === taskId);
-        if (!task) throw new Error("Task not found");
-        if (!task.isExecutable)
-          throw new Error("Only executable tasks can be emergency");
+        if (!task) throw new Error("任务不存在");
+        if (!task.isExecutable) throw new Error("不可执行的任务无法设为紧急");
         if (task.state !== "New" && task.state !== "Ready")
-          throw new Error(
-            "Only New or Ready tasks can be activated as emergency",
-          );
+          throw new Error("仅 New/Ready 状态的任务可设为紧急");
         if (tasks.some((t) => t.isEmergency && t.id !== taskId))
-          throw new Error("An emergency task already exists");
+          throw new Error("已存在紧急任务");
 
         const now = new Date().toISOString();
         const emergencyEvent: AppEvent = {
@@ -242,6 +238,7 @@ export const useAppStore = create<AppStore>()(
           createdAt: now,
         };
 
+        // eslint-disable-next-line prefer-const
         let updatedTasks = tasks.map((t) => {
           if (t.id === taskId) {
             return {
@@ -287,10 +284,9 @@ export const useAppStore = create<AppStore>()(
       resolveEmergency: (taskId: string) => {
         const { tasks, events, settings } = get();
         const task = tasks.find((t) => t.id === taskId);
-        if (!task) throw new Error("Task not found");
-        if (!task.isEmergency) throw new Error("Task is not an emergency task");
-        if (task.state !== "Running")
-          throw new Error("Emergency task is not running");
+        if (!task) throw new Error("任务不存在");
+        if (!task.isEmergency) throw new Error("该任务不是紧急任务");
+        if (task.state !== "Running") throw new Error("紧急任务未在运行");
 
         const now = new Date().toISOString();
         const emergencyEvent = events.find(
@@ -371,14 +367,12 @@ export const useAppStore = create<AppStore>()(
         const { tasks, settings } = get();
         const fromTask = tasks.find((t) => t.id === fromId);
         const toTask = tasks.find((t) => t.id === toId);
-        if (!fromTask) throw new Error("Source task not found");
-        if (!toTask) throw new Error("Target task not found");
-        if (fromTask.state !== "Running")
-          throw new Error("Source task is not running");
-        if (toTask.state !== "Ready")
-          throw new Error("Target task is not ready");
+        if (!fromTask) throw new Error("源任务不存在");
+        if (!toTask) throw new Error("目标任务不存在");
+        if (fromTask.state !== "Running") throw new Error("源任务未在运行");
+        if (toTask.state !== "Ready") throw new Error("目标任务未就绪");
         if (settings.currentRunningTaskId !== fromId)
-          throw new Error("Source task is not the current running task");
+          throw new Error("源任务不是当前运行任务");
         const now = new Date().toISOString();
         set((state) => ({
           tasks: state.tasks.map((t) => {
@@ -405,7 +399,59 @@ export const useAppStore = create<AppStore>()(
         }));
       },
 
-      checkStarvation: () => {},
+      checkStarvation: () => {
+        const { tasks } = get();
+        const now = Date.now();
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        const THREE_DAYS = 3 * ONE_DAY;
+
+        const updates = new Map<string, number>();
+
+        tasks
+          .filter((t) => t.state === "Ready")
+          .forEach((t) => {
+            if (t.priority <= 1) return;
+
+            let shouldPromote = false;
+
+            if (t.deadline) {
+              const deadlineTime = new Date(t.deadline).getTime();
+              if (deadlineTime - now < ONE_DAY && deadlineTime > now) {
+                shouldPromote = true;
+              }
+            }
+
+            if (!shouldPromote) {
+              const referenceTime = t.lastRunningAt
+                ? new Date(t.lastRunningAt).getTime()
+                : new Date(t.createdAt).getTime();
+              if (now - referenceTime > THREE_DAYS) {
+                shouldPromote = true;
+              }
+            }
+
+            if (shouldPromote) {
+              updates.set(t.id, (t.priority - 1) as Priority);
+            }
+          });
+
+        if (updates.size === 0) return;
+
+        const nowISO = new Date().toISOString();
+        set((state) => ({
+          tasks: state.tasks.map((t) => {
+            const newPriority = updates.get(t.id);
+            if (newPriority !== undefined) {
+              return {
+                ...t,
+                priority: newPriority as Priority,
+                updatedAt: nowISO,
+              };
+            }
+            return t;
+          }),
+        }));
+      },
     }),
     {
       name: "process-todo-storage",

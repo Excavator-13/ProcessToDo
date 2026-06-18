@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useAppStore } from "../store/useAppStore";
 import type { Task } from "../types";
 
@@ -36,6 +37,22 @@ const hoverShadowClass: Record<number, string> = {
   3: "hover:shadow-neon-blue",
 };
 
+const stateBgColor: Record<string, string> = {
+  New: "bg-neon-cyan/5 hover:bg-neon-cyan/10",
+  Ready: "bg-neon-green/5 hover:bg-neon-green/10",
+  Blocked: "bg-neon-yellow/5 hover:bg-neon-yellow/10",
+  Running: "bg-neon-red/5 hover:bg-neon-red/10",
+  Exit: "bg-neon-blue/5",
+};
+
+const stateBorderColor: Record<string, string> = {
+  New: "border-neon-cyan/20",
+  Ready: "border-neon-green/20",
+  Blocked: "border-neon-yellow/20",
+  Running: "border-neon-red/20",
+  Exit: "border-neon-blue/20",
+};
+
 export default function TaskCard({
   task,
   onPromote,
@@ -49,6 +66,22 @@ export default function TaskCard({
   );
   const priority = priorityConfig[task.priority] ?? priorityConfig[3];
   const hoverShadow = hoverShadowClass[task.priority] ?? hoverShadowClass[3];
+  const bgColor = stateBgColor[task.state] ?? stateBgColor.New;
+  const borderColor = stateBorderColor[task.state] ?? stateBorderColor.New;
+  const stateAnimation = task.state === "Blocked" ? "animate-pulse" : "";
+
+  const { isDeadlineUrgent, isDeadlineOverdue } = useMemo(() => {
+    if (!task.deadline)
+      return { isDeadlineUrgent: false, isDeadlineOverdue: false };
+    // eslint-disable-next-line react-hooks/purity
+    const now = Date.now();
+    const deadlineTime = new Date(task.deadline).getTime();
+    return {
+      isDeadlineUrgent:
+        deadlineTime - now < 24 * 60 * 60 * 1000 && deadlineTime > now,
+      isDeadlineOverdue: deadlineTime <= now,
+    };
+  }, [task.deadline]);
 
   const stateBadgeColor: Record<string, string> = {
     New: "bg-neon-cyan/10 text-neon-cyan border-neon-cyan/30",
@@ -64,7 +97,7 @@ export default function TaskCard({
 
   return (
     <div
-      className={`group relative bg-bg-primary/60 rounded-lg border border-border-glow border-l-4 ${priority.border} p-3 transition-all duration-200 hover:border-l-4 ${hoverShadow} hover:bg-bg-primary/90 ${queueHeadGlow} ${task.state === "Exit" ? "opacity-70" : ""}`}
+      className={`group relative ${bgColor} rounded-lg border ${borderColor} border-l-4 ${priority.border} p-3 transition-all duration-200 ${hoverShadow} ${queueHeadGlow} ${task.state === "Exit" ? "opacity-60" : ""} ${stateAnimation}`}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <h3 className="font-sans font-medium text-sm text-text-primary leading-tight truncate">
@@ -109,9 +142,25 @@ export default function TaskCard({
           </span>
         )}
 
-        {task.deadline && (
+        {task.deadline && isDeadlineOverdue && (
+          <span className="text-[10px] font-mono text-neon-red/70 line-through">
+            📅 ❌ {new Date(task.deadline).toLocaleDateString()}
+          </span>
+        )}
+        {task.deadline && isDeadlineUrgent && !isDeadlineOverdue && (
+          <span className="text-[10px] font-mono text-neon-red animate-pulse">
+            📅 ⚠ {new Date(task.deadline).toLocaleDateString()}
+          </span>
+        )}
+        {task.deadline && !isDeadlineUrgent && !isDeadlineOverdue && (
           <span className="text-[10px] font-mono text-text-muted">
             📅 {new Date(task.deadline).toLocaleDateString()}
+          </span>
+        )}
+
+        {isDeadlineUrgent && !isDeadlineOverdue && (
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neon-red/15 text-neon-red border border-neon-red/30">
+            URGENT
           </span>
         )}
       </div>

@@ -48,6 +48,14 @@ export default function ReadyQueue({
 
   const readyTasks = tasks.filter((t) => t.state === "Ready");
   const totalCount = readyTasks.length;
+  const isFull = totalCount >= readyQueueLimit;
+  const isNearFull = !isFull && totalCount >= readyQueueLimit * 0.8;
+
+  const capacityStyle = isFull
+    ? "bg-neon-red/15 text-neon-red border-neon-red/30 animate-pulse"
+    : isNearFull
+      ? "bg-neon-yellow/15 text-neon-yellow border-neon-yellow/30"
+      : "bg-neon-green/10 text-neon-green border-neon-green/30";
 
   return (
     <div className="space-y-2">
@@ -56,15 +64,22 @@ export default function ReadyQueue({
           QUEUE CAPACITY
         </span>
         <span
-          className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${
-            totalCount >= readyQueueLimit
-              ? "bg-neon-red/10 text-neon-red border-neon-red/30"
-              : "bg-neon-green/10 text-neon-green border-neon-green/30"
-          }`}
+          className={`font-mono text-[10px] px-1.5 py-0.5 rounded border ${capacityStyle}`}
         >
           {totalCount}/{readyQueueLimit}
         </span>
       </div>
+
+      {isFull && (
+        <p className="font-mono text-[10px] text-neon-red px-1">
+          ⚠ 队列已满，无法提入新任务
+        </p>
+      )}
+      {isNearFull && (
+        <p className="font-mono text-[10px] text-neon-yellow px-1">
+          ⚠ 队列接近上限
+        </p>
+      )}
 
       <div className="grid grid-cols-3 gap-2">
         {priorityColumns.map((col) => {

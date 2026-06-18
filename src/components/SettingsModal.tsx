@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { useAppStore } from "../store/useAppStore";
 import type { RunningMode } from "../types";
 
@@ -11,28 +11,6 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const settings = useAppStore((s) => s.settings);
   const updateSettings = useAppStore((s) => s.updateSettings);
 
-  const [runningMode, setRunningMode] = useState<RunningMode>(
-    settings.runningMode,
-  );
-  const [timeSliceDuration, setTimeSliceDuration] = useState(
-    settings.timeSliceDuration,
-  );
-  const [readyQueueLimit, setReadyQueueLimit] = useState(
-    settings.readyQueueLimit,
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    setRunningMode(settings.runningMode);
-    setTimeSliceDuration(settings.timeSliceDuration);
-    setReadyQueueLimit(settings.readyQueueLimit);
-  }, [
-    open,
-    settings.runningMode,
-    settings.timeSliceDuration,
-    settings.readyQueueLimit,
-  ]);
-
   useEffect(() => {
     if (!open) return;
     const handleEsc = (e: KeyboardEvent) => {
@@ -44,7 +22,6 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
 
   const handleModeChange = useCallback(
     (mode: RunningMode) => {
-      setRunningMode(mode);
       updateSettings({ runningMode: mode });
     },
     [updateSettings],
@@ -53,7 +30,6 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const handleTimeSliceChange = useCallback(
     (value: number) => {
       const clamped = Math.min(120, Math.max(1, value));
-      setTimeSliceDuration(clamped);
       updateSettings({ timeSliceDuration: clamped });
     },
     [updateSettings],
@@ -62,7 +38,6 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const handleQueueLimitChange = useCallback(
     (value: number) => {
       const clamped = Math.min(20, Math.max(1, value));
-      setReadyQueueLimit(clamped);
       updateSettings({ readyQueueLimit: clamped });
     },
     [updateSettings],
@@ -101,7 +76,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
               <button
                 onClick={() => handleModeChange("free")}
                 className={`py-2.5 px-3 rounded-lg border font-mono text-xs transition-all ${
-                  runningMode === "free"
+                  settings.runningMode === "free"
                     ? "border-neon-cyan/60 bg-neon-cyan/15 text-neon-cyan shadow-neon-cyan"
                     : "border-border-glow bg-bg-primary text-text-muted hover:border-neon-cyan/30 hover:text-text-primary"
                 }`}
@@ -112,7 +87,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
               <button
                 onClick={() => handleModeChange("timeSlicing")}
                 className={`py-2.5 px-3 rounded-lg border font-mono text-xs transition-all ${
-                  runningMode === "timeSlicing"
+                  settings.runningMode === "timeSlicing"
                     ? "border-neon-cyan/60 bg-neon-cyan/15 text-neon-cyan shadow-neon-cyan"
                     : "border-border-glow bg-bg-primary text-text-muted hover:border-neon-cyan/30 hover:text-text-primary"
                 }`}
@@ -125,7 +100,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
 
           <div
             className={`transition-all duration-200 ${
-              runningMode === "timeSlicing"
+              settings.runningMode === "timeSlicing"
                 ? "opacity-100"
                 : "opacity-30 pointer-events-none"
             }`}
@@ -136,7 +111,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             <div className="flex items-center gap-3">
               <input
                 type="number"
-                value={timeSliceDuration}
+                value={settings.timeSliceDuration}
                 onChange={(e) =>
                   handleTimeSliceChange(parseInt(e.target.value) || 1)
                 }
@@ -159,7 +134,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             <div className="flex items-center gap-3">
               <input
                 type="number"
-                value={readyQueueLimit}
+                value={settings.readyQueueLimit}
                 onChange={(e) =>
                   handleQueueLimitChange(parseInt(e.target.value) || 1)
                 }

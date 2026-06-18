@@ -66,6 +66,21 @@
   .animate-fade-up {
     animation: fade-up 0.3s ease-out;
   }
+
+  @keyframes confetti-fall {
+    0% {
+      transform: translateY(-10px) rotate(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(30px) rotate(360deg);
+      opacity: 0;
+    }
+  }
+
+  .animate-confetti {
+    animation: confetti-fall 1s ease-out forwards;
+  }
 }
 
 @layer base {

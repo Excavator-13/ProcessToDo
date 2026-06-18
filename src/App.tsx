@@ -10,8 +10,10 @@ import EventPanel from "./components/EventPanel";
 import SettingsModal from "./components/SettingsModal";
 import TimeSliceModal from "./components/TimeSliceModal";
 import Toast from "./components/Toast";
+import CelebrationEffect from "./components/CelebrationEffect";
 import { useToast } from "./hooks/useToast";
 import { useTimeSlice } from "./hooks/useTimeSlice";
+import { useStarvationCheck } from "./hooks/useStarvationCheck";
 import type { TaskState } from "./types";
 
 const columns: {
@@ -51,12 +53,16 @@ export default function App() {
   const completeTask = useAppStore((s) => s.completeTask);
   const blockTask = useAppStore((s) => s.blockTask);
   const resolveEvent = useAppStore((s) => s.resolveEvent);
+  useStarvationCheck();
   const activateEmergency = useAppStore((s) => s.activateEmergency);
   const resolveEmergency = useAppStore((s) => s.resolveEmergency);
   const switchTask = useAppStore((s) => s.switchTask);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [celebratingTaskId, setCelebratingTaskId] = useState<string | null>(
+    null,
+  );
   const [blockTarget, setBlockTarget] = useState<{
     taskId: string;
     taskTitle: string;
@@ -130,6 +136,8 @@ export default function App() {
       try {
         completeTask(id);
         showToast("Task completed! 🎉", "success");
+        setCelebratingTaskId(id);
+        setTimeout(() => setCelebratingTaskId(null), 1500);
       } catch (err) {
         showToast(
           err instanceof Error ? err.message : "Failed to complete task",
@@ -320,6 +328,7 @@ export default function App() {
         ) : (
           columnTasks.map((task) => (
             <div key={task.id} className="animate-fade-up">
+              <CelebrationEffect active={celebratingTaskId === task.id} />
               <TaskCard task={task} />
             </div>
           ))
